@@ -857,6 +857,10 @@ body.mn-annotate-mode .component-sample[data-note-id]:hover{outline-color:var(--
 @media print{.mn-fab,.mn-drawer,.mn-drawer-backdrop,.mn-modal,.mn-modal-backdrop,.mn-note-btn,.mn-toast{display:none!important}}
 @media(max-width:760px){.mn-drawer{width:100%}.mn-modal{width:calc(100% - 16px);padding:16px}}
 
+
+.mn-tool-btn.mn-tool-primary{background:var(--teal,#0d5c63);color:#fff;border-color:transparent;font-weight:600}
+.mn-tool-btn.mn-tool-primary:active,.mn-tool-btn.mn-tool-primary:hover{filter:brightness(1.05)}
+.mn-card .mn-meta .mn-tag-general{display:inline-block;padding:1px 7px;border-radius:999px;background:#edf7f1;color:#0d5c63;font-size:11px;font-weight:600;margin-right:4px}
 </style>
 </head>
 <body data-platforms="facebook,instagram,tiktok" data-signal="ytd" class="plat-facebook plat-instagram plat-tiktok">
@@ -2113,6 +2117,7 @@ body.mn-annotate-mode .component-sample[data-note-id]:hover{outline-color:var(--
     <button type="button" class="mn-icon-btn" id="mn-drawer-close" aria-label="Close notes drawer">✕</button>
   </div>
   <div class="mn-drawer-tools">
+    <button type="button" class="mn-tool-btn mn-tool-primary" id="mn-general-note" aria-label="Add a general note">+ General note</button>
     <button type="button" class="mn-tool-btn" id="mn-annotate-toggle" aria-pressed="false" aria-label="Tap sections to note">Tap to note</button>
     <button type="button" class="mn-tool-btn" id="mn-export-json" aria-label="Export notes as JSON">Export JSON</button>
     <button type="button" class="mn-tool-btn" id="mn-copy-text" aria-label="Copy notes as text">Copy text</button>
@@ -2293,7 +2298,7 @@ body.mn-annotate-mode .component-sample[data-note-id]:hover{outline-color:var(--
       return String(notes[b].updatedAt||'').localeCompare(String(notes[a].updatedAt||''));
     });
     if(!ids.length){
-      list.innerHTML = '<div class="mn-empty">No notes yet.<br>Use a <strong>Note</strong> button on a section, or turn on <strong>Tap to note</strong>.</div>';
+      list.innerHTML = '<div class="mn-empty">No notes yet.<br>Tap <strong>+ General note</strong>, use a <strong>Note</strong> button on a section, or turn on <strong>Tap to note</strong>.</div>';
       return;
     }
     list.innerHTML = ids.map(function(id){
@@ -2302,12 +2307,15 @@ body.mn-annotate-mode .component-sample[data-note-id]:hover{outline-color:var(--
       var title = escapeHtml(n.title || n.sectionLabel || 'Note');
       var body = escapeHtml((n.body || '').slice(0, 280));
       var when = escapeHtml(fmtManila(n.updatedAt));
+      var general = isGeneralId(id);
+      var meta = (general ? '<span class="mn-tag-general">General</span> ' : '') + label + ' · ' + when;
+      var jump = general ? '' : ('<a href="#' + escapeAttr(anchorFor(id)) + '" data-jump="' + escapeAttr(id) + '">Jump to section</a>');
       return '<article class="mn-card" data-note-id-ref="' + escapeAttr(id) + '">' +
         '<h3>' + title + '</h3>' +
-        '<div class="mn-meta">' + label + ' · ' + when + '</div>' +
+        '<div class="mn-meta">' + meta + '</div>' +
         '<div class="mn-body">' + body + '</div>' +
         '<div class="mn-card-actions">' +
-          '<a href="#' + escapeAttr(anchorFor(id)) + '" data-jump="' + escapeAttr(id) + '">Jump to section</a>' +
+          jump +
           '<button type="button" data-edit="' + escapeAttr(id) + '">Edit</button>' +
         '</div></article>';
     }).join('');
@@ -2349,12 +2357,24 @@ body.mn-annotate-mode .component-sample[data-note-id]:hover{outline-color:var(--
     setTimeout(function(){ d.hidden = true; b.hidden = true; }, 220);
   }
 
+  function isGeneralId(id){ return String(id||'').indexOf('general:') === 0; }
+  function newGeneralId(){
+    return 'general:' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+  function openGeneralNote(){
+    openEditor(newGeneralId());
+  }
   function openEditor(noteId){
     activeId = noteId;
     var el = document.querySelector('[data-note-id="' + cssEscape(noteId) + '"]');
-    var label = el ? sectionLabel(el) : (notes[noteId] && notes[noteId].sectionLabel) || noteId;
+    var label;
+    if(isGeneralId(noteId)){
+      label = (notes[noteId] && notes[noteId].sectionLabel) || 'General note';
+    } else {
+      label = el ? sectionLabel(el) : (notes[noteId] && notes[noteId].sectionLabel) || noteId;
+    }
     var n = notes[noteId] || {};
-    document.getElementById('mn-modal-title').textContent = n.body || n.title ? 'Edit note' : 'Add note';
+    document.getElementById('mn-modal-title').textContent = n.body || n.title ? 'Edit note' : (isGeneralId(noteId) ? 'Add general note' : 'Add note');
     document.getElementById('mn-modal-section').textContent = label;
     document.getElementById('mn-title').value = n.title || '';
     document.getElementById('mn-body').value = n.body || '';
@@ -2379,7 +2399,12 @@ body.mn-annotate-mode .component-sample[data-note-id]:hover{outline-color:var(--
     var title = document.getElementById('mn-title').value.trim();
     var body = document.getElementById('mn-body').value.trim();
     var el = document.querySelector('[data-note-id="' + cssEscape(activeId) + '"]');
-    var label = el ? sectionLabel(el) : activeId;
+    var label;
+    if(isGeneralId(activeId)){
+      label = 'General note';
+    } else {
+      label = el ? sectionLabel(el) : ((notes[activeId] && notes[activeId].sectionLabel) || activeId);
+    }
     if(!title && !body){
       delete notes[activeId];
     } else {
@@ -2505,6 +2530,8 @@ body.mn-annotate-mode .component-sample[data-note-id]:hover{outline-color:var(--
     document.getElementById('mn-cancel').addEventListener('click', closeEditor);
     document.getElementById('mn-save').addEventListener('click', saveNote);
     document.getElementById('mn-delete').addEventListener('click', deleteNote);
+    var genBtn = document.getElementById('mn-general-note');
+    if(genBtn) genBtn.addEventListener('click', openGeneralNote);
     document.getElementById('mn-annotate-toggle').addEventListener('click', function(){ setAnnotate(!annotateMode); });
     document.getElementById('mn-export-json').addEventListener('click', exportJson);
     document.getElementById('mn-copy-text').addEventListener('click', copyText);
